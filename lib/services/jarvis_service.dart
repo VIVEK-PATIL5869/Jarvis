@@ -58,8 +58,8 @@ import 'vision_perception_service.dart';
 import 'voice_service.dart';
 import 'workflow_service.dart';
 
-/// Active operational phase of JARVIS.
-enum JarvisPhase {
+/// Active operational phase of VI.
+enum VIPhase {
   idle, // Standby, listening for wake word or prompt
   listening, // Actively recording user speech
   thinking, // Processing intent / AI reasoning
@@ -67,19 +67,19 @@ enum JarvisPhase {
   speaking, // Vocalizing audio reply via TTS
 }
 
-/// Central controller for JARVIS Mode:
-/// - Always-On hands-free voice assistant with Wake Words ("Hey Jarvis", "Hello Jarvis", "Jarvis")
+/// Central controller for VI Mode:
+/// - Always-On hands-free voice assistant with Wake Words ("Hey VI", "Hello VI", "VI")
 /// - Ignores ambient room chatter in standby until wake word is recognized
 /// - Active conversational continuation window for hands-free follow-up queries
 /// - Hermes Self-Evolving Workflow Engine integration (Study, Night, Work, Cinema)
-/// - Connects to [AiService.interpretJarvisCommand] for action vs chat vs system vs news
+/// - Connects to [AiService.interpretVICommand] for action vs chat vs system vs news
 /// - Dispatches automation directly to [TaskExecutor]
 /// - Emits high-frequency telemetry for the HUD animation painter
-class JarvisService extends ChangeNotifier {
-  JarvisService._() {
+class VIService extends ChangeNotifier {
+  VIService._() {
     _initListeners();
   }
-  static final JarvisService instance = JarvisService._();
+  static final VIService instance = VIService._();
 
   final VoiceService _voice = VoiceService.instance;
   final AiService _ai = AiService.instance;
@@ -87,16 +87,16 @@ class JarvisService extends ChangeNotifier {
   final SystemControlService _system = SystemControlService.instance;
   final ScreenAutomationService _automation = ScreenAutomationService.instance;
 
-  JarvisPhase _phase = JarvisPhase.idle;
-  JarvisPhase get phase => _phase;
+  VIPhase _phase = VIPhase.idle;
+  VIPhase get phase => _phase;
 
   String _lastUserSpeech = '';
   String get lastUserSpeech => _lastUserSpeech;
 
-  String _lastJarvisSpeech = 'At your service, sir. Say "Hey Jarvis" anytime.';
-  String get lastJarvisSpeech => _lastJarvisSpeech;
+  String _lastVISpeech = 'Hello, I am VI. At your service, sir. Say "Hey VI" anytime.';
+  String get lastVISpeech => _lastVISpeech;
 
-  String _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
+  String _statusMessage = 'STANDBY // SAY "HEY VI"';
   String get statusMessage => _statusMessage;
 
   String? _currentTaskGoal;
@@ -109,8 +109,8 @@ class JarvisService extends ChangeNotifier {
   double get soundLevel => _soundLevel;
 
   bool _initialized = false;
-  bool _isInJarvisMode = false;
-  bool get isInJarvisMode => _isInJarvisMode;
+  bool _isInVIMode = false;
+  bool get isInVIMode => _isInVIMode;
   bool _isAwake = false;
   bool get isAwake => _isAwake;
 
@@ -126,7 +126,7 @@ class JarvisService extends ChangeNotifier {
   final List<Map<String, String>> _dialogHistory = [];
 
   bool get isAlwaysOn => SettingsService.instance.jarvisAlwaysOn;
-  bool get _shouldListenContinuously => isAlwaysOn || _isInJarvisMode;
+  bool get _shouldListenContinuously => isAlwaysOn || _isInVIMode;
   ProactiveSuggestion? get pendingProactiveSuggestion => _pendingProactiveSuggestion;
   bool get isAwaitingProactiveConfirmation => _pendingProactiveSuggestion != null;
 
@@ -142,7 +142,7 @@ class JarvisService extends ChangeNotifier {
         'type': 'jarvis_state',
         'phase': _phase.name,
         'status': _statusMessage,
-        'lastSpeech': _lastJarvisSpeech,
+        'lastSpeech': _lastVISpeech,
       }));
     } catch (_) {}
   }
@@ -184,13 +184,13 @@ class JarvisService extends ChangeNotifier {
     _voice.isSpeaking.addListener(() {
       if (_voice.isSpeaking.value) {
         _speechSilenceTimer?.cancel();
-        if (_phase != JarvisPhase.executing) {
-          _phase = JarvisPhase.speaking;
+        if (_phase != VIPhase.executing) {
+          _phase = VIPhase.speaking;
           notifyListeners();
         }
       } else {
-        if (_phase == JarvisPhase.speaking) {
-          _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
+        if (_phase == VIPhase.speaking) {
+          _phase = _executor.isBusy ? VIPhase.executing : VIPhase.idle;
           notifyListeners();
         }
         // Continuous listening trigger: when speech output finishes, resume passive wake-word listening
@@ -205,21 +205,21 @@ class JarvisService extends ChangeNotifier {
 
     _voice.listeningNotifier.addListener(() {
       if (!_voice.listeningNotifier.value) {
-        if (_phase == JarvisPhase.listening) {
-          _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
+        if (_phase == VIPhase.listening) {
+          _phase = _executor.isBusy ? VIPhase.executing : VIPhase.idle;
           notifyListeners();
         }
       }
     });
 
     _executor.addListener(() {
-      if (_phase == JarvisPhase.executing) {
+      if (_phase == VIPhase.executing) {
         _currentStep = _executor.step;
         if (!_executor.isBusy) {
           _currentStep = 0;
           _currentTaskGoal = null;
           _phase =
-              _voice.isSpeaking.value ? JarvisPhase.speaking : JarvisPhase.idle;
+              _voice.isSpeaking.value ? VIPhase.speaking : VIPhase.idle;
           notifyListeners();
           if (_shouldListenContinuously) {
             startListening();
@@ -243,10 +243,10 @@ class JarvisService extends ChangeNotifier {
   void _keepAwake() {
     _awakeTimer?.cancel();
     _awakeTimer = Timer(const Duration(seconds: 15), () {
-      if (_phase != JarvisPhase.executing) {
+      if (_phase != VIPhase.executing) {
         _isAwake = false;
         _statusMessage = _shouldListenContinuously
-            ? 'STANDBY // SAY "HEY JARVIS"'
+            ? 'STANDBY // SAY "HEY VI"'
             : 'READY // TAP TO TALK';
         notifyListeners();
       }
@@ -263,9 +263,9 @@ class JarvisService extends ChangeNotifier {
     _awakeTimer?.cancel();
     _lastUserSpeech = '';
     _statusMessage = _shouldListenContinuously
-        ? 'STANDBY // SAY "HEY JARVIS"'
+        ? 'STANDBY // SAY "HEY VI"'
         : 'READY // TAP TO TALK';
-    _phase = JarvisPhase.idle;
+    _phase = VIPhase.idle;
     notifyListeners();
   }
 
@@ -278,7 +278,7 @@ class JarvisService extends ChangeNotifier {
 
     _wakeUp();
     _isInFollowUp = true;
-    _phase = JarvisPhase.listening;
+    _phase = VIPhase.listening;
     _statusMessage = 'LISTENING // ASK A FOLLOW-UP OR COMMAND';
     notifyListeners();
 
@@ -312,8 +312,8 @@ class JarvisService extends ChangeNotifier {
   }
 
   /// Extracts the wake word command from speech with robust normalization.
-  /// Supports J.A.R.V.I.S., phonetic variants, and Google Assistant wake phrases.
-  /// Handles punctuation (commas like "Hey, Jarvis"), accents, and alternate STT hypotheses.
+  /// Supports VI wake phrases and Google Assistant wake phrases.
+  /// Handles punctuation (commas like "Hey, VI"), accents, and alternate STT hypotheses.
   /// Returns:
   /// - '' (empty string) if only wake word / greeting was spoken (to wake up and start listening)
   /// - the extracted user command if wake word + command was spoken
@@ -340,20 +340,20 @@ class JarvisService extends ChangeNotifier {
     // - standalone (jarvis | javis | jervis | jarves | jarvice | charvis | garvis | jarvi)
     // - (wake up jarvis | jarvis wake up | jarvis please)
     final wakePattern = RegExp(
-      r'\b(?:(?:hey|hello|hi|okay|ok|yo|listen|wake\s+up|dear)\s+(?:jarvis|javis|jervis|jarves|jarvice|charvis|garvis|gervis|travis|service|davis|davies|harvest|jarvi|google)|(?:jarvis|javis|jervis|jarves|jarvice|charvis|garvis|jarvi)\s+(?:wake\s+up|please|online)|(?:jarvis|javis|jervis|jarves|jarvice|charvis|garvis|jarvi)|(?:hey|okay|ok|hello|hi)\s+google)\b',
+      r'\\b(?:(?:hey|hello|hi|okay|ok|yo|listen|wake\\s+up|dear)\\s+vi|vi\\s+(?:wake\\s+up|please|online)|vi|(?:hey|okay|ok|hello|hi)\\s+google)\\b',
       caseSensitive: false,
     );
 
     final match = wakePattern.firstMatch(normalized);
     if (match == null) return null;
 
-    // Command after wake word: e.g. "Hey Jarvis, what time is it" -> "what time is it"
+    // Command after wake word: e.g. "Hey VI, what time is it" -> "what time is it"
     final after = normalized
         .substring(match.end)
         .replaceAll(RegExp(r'^[,\s!?\-:;]+'), '')
         .trim();
 
-    // Command before wake word: e.g. "What time is it, Jarvis" -> "What time is it"
+    // Command before wake word: e.g. "What time is it, VI" -> "What time is it"
     final before = normalized
         .substring(0, match.start)
         .replaceAll(RegExp(r'[,\s!?\-:;]+$'), '')
@@ -369,7 +369,7 @@ class JarvisService extends ChangeNotifier {
 
     if (before.isNotEmpty) {
       final lowerBefore = before.toLowerCase();
-      // If "before" was just a greeting prefix (e.g. "Hey" from "Hey, Jarvis"), return empty string so it wakes up
+      // If "before" was just a greeting prefix (e.g. "Hey" from "Hey, VI"), return empty string so it wakes up
       if (lowerBefore == 'hey' ||
           lowerBefore == 'hello' ||
           lowerBefore == 'hi' ||
@@ -382,7 +382,7 @@ class JarvisService extends ChangeNotifier {
       return before;
     }
 
-    // Only wake word was spoken: e.g. "Hey Jarvis" or "Jarvis"
+    // Only wake word was spoken: e.g. "Hey VI" or "VI"
     return '';
   }
 
@@ -400,29 +400,29 @@ class JarvisService extends ChangeNotifier {
         );
       }
     } catch (e) {
-      debugPrint('[JarvisService] Modal launch error: $e');
+      debugPrint('[VIService] Modal launch error: $e');
     }
   }
 
-  /// Called when user navigates into JARVIS mode.
-  void onEnterJarvisMode() {
-    _isInJarvisMode = true;
+  /// Called when user navigates into VI mode.
+  void onEnterVIMode() {
+    _isInVIMode = true;
     _standDown();
     startListening();
-    // Arm mid-air proximity sensor for zero-touch gestures while in JARVIS mode
+    // Arm mid-air proximity sensor for zero-touch gestures while in VI mode
     unawaited(AirGestureService.instance.start());
-    _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
+    _statusMessage = 'STANDBY // SAY "HEY VI"';
     notifyListeners();
   }
 
-  /// Called when user leaves JARVIS mode to prevent background audio captures.
-  void onExitJarvisMode() {
-    _isInJarvisMode = false;
+  /// Called when user leaves VI mode to prevent background audio captures.
+  void onExitVIMode() {
+    _isInVIMode = false;
     unawaited(AirGestureService.instance.stop());
     // Always-On mode listens continuously across the app like Google Assistant
     if (!isAlwaysOn) {
       _standDown();
-      if (_phase == JarvisPhase.listening) {
+      if (_phase == VIPhase.listening) {
         stopListening();
       }
     }
@@ -432,22 +432,22 @@ class JarvisService extends ChangeNotifier {
   Future<void> toggleAlwaysOn() async {
     final current = SettingsService.instance.jarvisAlwaysOn;
     final next = !current;
-    await SettingsService.instance.setJarvisAlwaysOn(next);
+    await SettingsService.instance.setVIAlwaysOn(next);
     notifyListeners();
 
     if (next) {
       _wakeUp();
       ensureAlwaysOnRunning();
       const msg =
-          'Always-On continuous listening active, sir. Say "Hey Jarvis" anytime.';
-      _lastJarvisSpeech = msg;
-      _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
+          'Always-On continuous listening active, sir. Say "Hey VI" anytime.';
+      _lastVISpeech = msg;
+      _statusMessage = 'STANDBY // SAY "HEY VI"';
       notifyListeners();
       await _voice.speak(msg);
     } else {
       stopAlwaysOn();
       const msg = 'Always-On listening standby, sir.';
-      _lastJarvisSpeech = msg;
+      _lastVISpeech = msg;
       _statusMessage = 'READY // TAP TO TALK';
       notifyListeners();
       await _voice.speak(msg);
@@ -457,21 +457,21 @@ class JarvisService extends ChangeNotifier {
   /// Session guard to ensure rich executive greeting is spoken once per session upon launch
   bool _hasGreetedThisSession = false;
 
-  /// Initial vocal greeting when user enters JARVIS mode.
+  /// Initial vocal greeting when user enters VI mode.
   /// Dynamically synthesizes date, time, calendar meetings (e.g. Jack), and pending to-dos.
   Future<void> speakGreeting({bool force = false}) async {
     if (!force && _hasGreetedThisSession) return;
     _hasGreetedThisSession = true;
 
-    onEnterJarvisMode();
+    onEnterVIMode();
     _wakeUp();
-    _phase = JarvisPhase.thinking;
+    _phase = VIPhase.thinking;
     _statusMessage = 'SYNTHESIZING EXECUTIVE BRIEFING';
     notifyListeners();
 
     final greeting = await PersonalityService.instance.generateExecutiveGreeting();
-    _lastJarvisSpeech = greeting;
-    _phase = JarvisPhase.speaking;
+    _lastVISpeech = greeting;
+    _phase = VIPhase.speaking;
     _statusMessage = 'EXECUTIVE BRIEFING // READY';
     notifyListeners();
     await _voice.speak(greeting);
@@ -480,21 +480,21 @@ class JarvisService extends ChangeNotifier {
 
   /// Autonomously speaks a proactive question and opens a hands-free confirmation listening window.
   Future<void> proactivelySpeakAndAwaitConfirmation(ProactiveSuggestion suggestion) async {
-    // If Jarvis is currently busy in execution, do not interrupt
-    if (_phase == JarvisPhase.executing) return;
+    // If VI is currently busy in execution, do not interrupt
+    if (_phase == VIPhase.executing) return;
 
     _proactiveConfirmationTimer?.cancel();
     _pendingProactiveSuggestion = suggestion;
-    _lastJarvisSpeech = suggestion.spokenPrompt;
+    _lastVISpeech = suggestion.spokenPrompt;
     _statusMessage = 'PROACTIVE ALERT // ${suggestion.title.toUpperCase()}';
-    _phase = JarvisPhase.speaking;
+    _phase = VIPhase.speaking;
     notifyListeners();
 
     await _voice.speak(suggestion.spokenPrompt);
 
     if (SettingsService.instance.proactiveVoiceConfirmationEnabled) {
       _wakeUp();
-      _phase = JarvisPhase.listening;
+      _phase = VIPhase.listening;
       _statusMessage = 'AWAITING RESPONSE // SAY "YES" OR "NO"';
       notifyListeners();
 
@@ -504,7 +504,7 @@ class JarvisService extends ChangeNotifier {
       _proactiveConfirmationTimer?.cancel();
       _proactiveConfirmationTimer = Timer(const Duration(seconds: 8), () {
         if (_pendingProactiveSuggestion != null) {
-          debugPrint('[JarvisService] Proactive confirmation timed out with no response');
+          debugPrint('[VIService] Proactive confirmation timed out with no response');
           _pendingProactiveSuggestion = null;
           _standDown();
         }
@@ -514,7 +514,7 @@ class JarvisService extends ChangeNotifier {
       if (_shouldListenContinuously) {
         _standDown();
       } else {
-        _phase = JarvisPhase.idle;
+        _phase = VIPhase.idle;
         _statusMessage = 'READY // TAP TO TALK';
         notifyListeners();
       }
@@ -525,7 +525,7 @@ class JarvisService extends ChangeNotifier {
   void dismissProactiveConfirmation() {
     _proactiveConfirmationTimer?.cancel();
     _pendingProactiveSuggestion = null;
-    if (_phase == JarvisPhase.listening) {
+    if (_phase == VIPhase.listening) {
       _standDown();
     }
   }
@@ -556,7 +556,7 @@ class JarvisService extends ChangeNotifier {
 
   /// Toggles speech recognition manually via the UI.
   Future<void> toggleListening() async {
-    if (_phase == JarvisPhase.listening) {
+    if (_phase == VIPhase.listening) {
       await stopListening();
       if (_shouldListenContinuously) {
         _standDown();
@@ -580,11 +580,11 @@ class JarvisService extends ChangeNotifier {
     // Only set phase to listening if awake or manual tap.
     // In passive standby background waiting for wake-word, stay in idle so UI is calm and does NOT flicker!
     if (_isAwake || !_shouldListenContinuously) {
-      _phase = JarvisPhase.listening;
+      _phase = VIPhase.listening;
       _statusMessage = 'LISTENING // AUDIO RECEPTORS ACTIVE';
     } else {
-      _phase = JarvisPhase.idle;
-      _statusMessage = 'STANDBY // SAY "HEY JARVIS"';
+      _phase = VIPhase.idle;
+      _statusMessage = 'STANDBY // SAY "HEY VI"';
     }
     notifyListeners();
 
@@ -593,7 +593,7 @@ class JarvisService extends ChangeNotifier {
       manual: manual,
       onResult: (words, isFinal, candidates) {
         _lastUserSpeech = words;
-        debugPrint('[JarvisService] Heard: "$words" (candidates: $candidates, isFinal: $isFinal, isAwake: $_isAwake)');
+        debugPrint('[VIService] Heard: "$words" (candidates: $candidates, isFinal: $isFinal, isAwake: $_isAwake)');
 
         // Immediate wake detection on partial speech stream
         if (_shouldListenContinuously && !_isAwake) {
@@ -614,7 +614,7 @@ class JarvisService extends ChangeNotifier {
 
             // Set visual listening state immediately, but NEVER cut off the user!
             // Let the user finish speaking their full command until silence / isFinal.
-            _phase = JarvisPhase.listening;
+            _phase = VIPhase.listening;
             _statusMessage = 'LISTENING // AUDIO RECEPTORS ACTIVE';
             notifyListeners();
           }
@@ -632,7 +632,7 @@ class JarvisService extends ChangeNotifier {
           _speechSilenceTimer = Timer(const Duration(milliseconds: 950), () {
             final trimmed = _lastUserSpeech.trim();
             if (trimmed.isNotEmpty) {
-              debugPrint('[JarvisService] Silence debounce timer fired for: "$trimmed"');
+              debugPrint('[VIService] Silence debounce timer fired for: "$trimmed"');
               unawaited(_handleSpeechResult(trimmed, candidates));
             }
           });
@@ -644,11 +644,11 @@ class JarvisService extends ChangeNotifier {
           if (trimmed.isNotEmpty) {
             unawaited(_handleSpeechResult(trimmed, candidates));
           } else {
-            _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
+            _phase = _executor.isBusy ? VIPhase.executing : VIPhase.idle;
             _statusMessage = _shouldListenContinuously
                 ? (_isAwake
                     ? 'LISTENING // AUDIO RECEPTORS ACTIVE'
-                    : 'STANDBY // SAY "HEY JARVIS"')
+                    : 'STANDBY // SAY "HEY VI"')
                 : 'READY // TAP TO TALK';
             notifyListeners();
           }
@@ -657,7 +657,7 @@ class JarvisService extends ChangeNotifier {
     );
 
     if (!started) {
-      _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
+      _phase = _executor.isBusy ? VIPhase.executing : VIPhase.idle;
       _statusMessage = 'MICROPHONE UNAVAILABLE';
       notifyListeners();
     }
@@ -669,9 +669,9 @@ class JarvisService extends ChangeNotifier {
     _speechSilenceTimer?.cancel();
 
     // Guard against duplicate execution while already busy
-    if (_phase == JarvisPhase.thinking ||
-        _phase == JarvisPhase.executing ||
-        _phase == JarvisPhase.speaking) {
+    if (_phase == VIPhase.thinking ||
+        _phase == VIPhase.executing ||
+        _phase == VIPhase.speaking) {
       return;
     }
 
@@ -682,10 +682,10 @@ class JarvisService extends ChangeNotifier {
     _isInFollowUp = false;
 
     _lastUserSpeech = '';
-    debugPrint('[JarvisService] _handleSpeechResult: "$trimmed" (candidates: $candidates, isAwake: $_isAwake)');
+    debugPrint('[VIService] _handleSpeechResult: "$trimmed" (candidates: $candidates, isAwake: $_isAwake)');
 
     // Proactive conversational confirmation check:
-    // If Jarvis just asked a proactive question (e.g. "It's night time, sir. Should I turn on the night mode?"),
+    // If VI just asked a proactive question (e.g. "It's night time, sir. Should I turn on the night mode?"),
     // interpret the user's natural answer ("yes", "sure", "no", "later") immediately without requiring a wake word.
     if (_pendingProactiveSuggestion != null) {
       final suggestion = _pendingProactiveSuggestion!;
@@ -696,27 +696,27 @@ class JarvisService extends ChangeNotifier {
       final isAffirmative = isAffirmativeResponse(answer);
       final isNegative = isNegativeResponse(answer);
 
-      debugPrint('[JarvisService] Proactive response: "$answer" (yes: $isAffirmative, no: $isNegative)');
+      debugPrint('[VIService] Proactive response: "$answer" (yes: $isAffirmative, no: $isNegative)');
 
       if (isAffirmative) {
         _wakeUp();
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = 'CONFIRMED // ENGAGING ${suggestion.title.toUpperCase()}';
         notifyListeners();
 
         const ack = 'Right away, sir. Executing now.';
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(ack);
 
         await processCommand(suggestion.actionGoal);
         return;
       } else if (isNegative) {
-        _phase = JarvisPhase.speaking;
+        _phase = VIPhase.speaking;
         _statusMessage = 'DISMISSED // STANDING DOWN';
         const ack = 'Understood, sir. Standing by.';
-        _lastJarvisSpeech = ack;
+        _lastVISpeech = ack;
         notifyListeners();
         await _voice.speak(ack);
         _standDown();
@@ -731,7 +731,7 @@ class JarvisService extends ChangeNotifier {
       return;
     }
 
-    // 2. Continuous listening is active (Jarvis HUD or Always-On): Check for wake word across speech and candidates
+    // 2. Continuous listening is active (VI HUD or Always-On): Check for wake word across speech and candidates
     var wakeCommand = _extractWakeCommand(trimmed);
     if (wakeCommand == null && candidates != null) {
       for (final cand in candidates) {
@@ -749,20 +749,20 @@ class JarvisService extends ChangeNotifier {
       HapticFeedback.mediumImpact();
 
       if (wakeCommand.isEmpty) {
-        // User said ONLY "Hey Jarvis" or "Jarvis" -> Stay in LISTENING state waiting for command
+        // User said ONLY "Hey VI" or "VI" -> Stay in LISTENING state waiting for command
         _wakeUp();
-        _phase = JarvisPhase.listening;
+        _phase = VIPhase.listening;
         _statusMessage = 'LISTENING // AUDIO RECEPTORS ACTIVE';
         notifyListeners();
         return;
       } else {
-        // User said "Hey Jarvis [command]" e.g. "Hey Jarvis, what are today to new headlines"
+        // User said "Hey VI [command]" e.g. "Hey VI, what are today to new headlines"
         await processCommand(wakeCommand);
         return;
       }
     }
 
-    // 3. User is already awake (from previous "Hey Jarvis" greeting or manual screen tap):
+    // 3. User is already awake (from previous "Hey VI" greeting or manual screen tap):
     // Execute direct follow-up commands!
     if (_isAwake) {
       await processCommand(trimmed);
@@ -772,7 +772,7 @@ class JarvisService extends ChangeNotifier {
     // 4. In background standby mode, user spoke WITHOUT wake word:
     // (e.g. talking to a friend on the desk):
     // COMPLETELY IGNORE ambient chatter to never interrupt room conversation!
-    debugPrint('[JarvisService] Ambient conversation ignored: "$trimmed"');
+    debugPrint('[VIService] Ambient conversation ignored: "$trimmed"');
     _standDown();
   }
 
@@ -782,10 +782,10 @@ class JarvisService extends ChangeNotifier {
     _isInFollowUp = false;
     _speechSilenceTimer?.cancel();
     await _voice.stopListening();
-    if (_phase == JarvisPhase.listening) {
-      _phase = _executor.isBusy ? JarvisPhase.executing : JarvisPhase.idle;
+    if (_phase == VIPhase.listening) {
+      _phase = _executor.isBusy ? VIPhase.executing : VIPhase.idle;
       _statusMessage = _shouldListenContinuously
-          ? 'STANDBY // SAY "HEY JARVIS"'
+          ? 'STANDBY // SAY "HEY VI"'
           : 'READY // TAP TO TALK';
       notifyListeners();
     }
@@ -796,23 +796,23 @@ class JarvisService extends ChangeNotifier {
     _standDown();
     if (_executor.isBusy) {
       _executor.cancel();
-      _phase = JarvisPhase.speaking;
+      _phase = VIPhase.speaking;
       _statusMessage = 'PROTOCOL ABORTED // STANDING DOWN';
       const speech = 'Aborting task immediately, sir.';
-      _lastJarvisSpeech = speech;
+      _lastVISpeech = speech;
       notifyListeners();
       await _voice.speak(speech);
     } else {
       await _voice.stopSpeaking();
-      _phase = JarvisPhase.idle;
+      _phase = VIPhase.idle;
       _statusMessage = _shouldListenContinuously
-          ? 'STANDBY // SAY "HEY JARVIS"'
+          ? 'STANDBY // SAY "HEY VI"'
           : 'READY // TAP TO TALK';
       notifyListeners();
     }
   }
 
-  /// Processes a voice command through JARVIS intelligence.
+  /// Processes a voice command through VI intelligence.
   Future<void> processCommand(String command) async {
     _wakeUp();
 
@@ -820,7 +820,7 @@ class JarvisService extends ChangeNotifier {
     if (trimmed.isEmpty) return;
 
     _lastUserSpeech = trimmed;
-    _phase = JarvisPhase.thinking;
+    _phase = VIPhase.thinking;
     _statusMessage = 'COMPUTING // ANALYZING COMMAND';
     notifyListeners();
 
@@ -853,10 +853,10 @@ class JarvisService extends ChangeNotifier {
       _standDown();
       await _voice.stopListening();
       final reply = PersonalityService.instance.getStandDown();
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = _shouldListenContinuously
-          ? 'STANDBY // SAY "HEY JARVIS"'
+          ? 'STANDBY // SAY "HEY VI"'
           : 'READY // TAP TO TALK';
       notifyListeners();
       await _voice.speak(reply);
@@ -873,13 +873,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('fill my details') ||
         lower.contains('fill my info') ||
         lower.contains('fill my information')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'FORM AUTOFILL // SURVEYING FIELDS';
       notifyListeners();
 
       final result = await FormFillingService.instance.fillActiveForm();
-      _lastJarvisSpeech = result;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = result;
+      _phase = VIPhase.speaking;
       _statusMessage = 'FORM AUTOFILL COMPLETE';
       notifyListeners();
       await _voice.speak(result);
@@ -894,11 +894,11 @@ class JarvisService extends ChangeNotifier {
         lower == 'continuous listening' ||
         lower == 'turn on always on' ||
         lower == 'enable always on') {
-      await SettingsService.instance.setJarvisAlwaysOn(true);
+      await SettingsService.instance.setVIAlwaysOn(true);
       ensureAlwaysOnRunning();
       const reply = 'Always-on continuous listening engaged, sir.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'ALWAYS-ON RECEPTORS ACTIVE';
       notifyListeners();
       await _voice.speak(reply);
@@ -909,11 +909,11 @@ class JarvisService extends ChangeNotifier {
         lower == 'disable always on' ||
         lower == 'deactivate always on' ||
         lower == 'stop always on') {
-      await SettingsService.instance.setJarvisAlwaysOn(false);
+      await SettingsService.instance.setVIAlwaysOn(false);
       stopAlwaysOn();
       const reply = 'Always-on continuous listening deactivated, sir.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'READY // TAP TO TALK';
       notifyListeners();
       await _voice.speak(reply);
@@ -928,7 +928,7 @@ class JarvisService extends ChangeNotifier {
         lower == 'evolve yourself' ||
         lower == 'update your protocols' ||
         lower == 'evolve memory') {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'SYNTHESIZING HERMES CONTEXT';
       notifyListeners();
       await HermesEvolutionService.instance.evolveContext();
@@ -936,8 +936,8 @@ class JarvisService extends ChangeNotifier {
       final workflowCount = WorkflowService.instance.workflows.length;
       final reply =
           'Hermes self-evolution cycle completed, sir. Synthesized $factsCount user memory facts and $workflowCount active protocols across SOUL.md, USER.md, and AGENT.md.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'SELF-EVOLUTION COMPLETE';
       notifyListeners();
       await _voice.speak(reply);
@@ -954,8 +954,8 @@ class JarvisService extends ChangeNotifier {
         lower == 'decoupler dialog') {
       _showModalSafely(const BrainDumpDialog());
       const reply = 'Multi-Task Decoupler interface opened, sir. Ready for your compound instructions.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'MULTI-TASK DECOUPLER ACTIVE';
       notifyListeners();
       await _voice.speak(reply);
@@ -967,15 +967,15 @@ class JarvisService extends ChangeNotifier {
         lower.startsWith('save macro') ||
         lower.startsWith('finish recording')) {
       if (MacroRecorderService.instance.isRecording) {
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = 'CODIFYING AUTONOMOUS MACRO // AGENT.MD';
         notifyListeners();
         final skill = await MacroRecorderService.instance.stopRecording();
         final reply = skill != null
             ? 'Macro "${skill.goal}" successfully recorded and codified into AGENT.md, sir.'
             : 'Macro recording concluded, sir.';
-        _lastJarvisSpeech = reply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = reply;
+        _phase = VIPhase.speaking;
         _statusMessage = 'MACRO CODIFIED';
         notifyListeners();
         await _voice.speak(reply);
@@ -992,8 +992,8 @@ class JarvisService extends ChangeNotifier {
           .trim();
       await MacroRecorderService.instance.startRecording(macroGoal.isNotEmpty ? macroGoal : 'Custom Task');
       final reply = 'Macro recording engaged for "${macroGoal.isNotEmpty ? macroGoal : 'Custom Task'}", sir. Demonstrate the actions on your screen and say "save macro" when finished.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'RECORDING MACRO: ${macroGoal.toUpperCase()}';
       notifyListeners();
       await _voice.speak(reply);
@@ -1008,16 +1008,16 @@ class JarvisService extends ChangeNotifier {
       final match = await SkillMemoryService.instance.findMatch(macroName);
       if (match != null) {
         final reply = 'Executing macro "${match.goal}", sir.';
-        _lastJarvisSpeech = reply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = reply;
+        _phase = VIPhase.speaking;
         _statusMessage = 'REPLAYING MACRO: ${match.goal.toUpperCase()}';
         notifyListeners();
         await _voice.speak(reply);
         await MacroRecorderService.instance.replaySkill(match);
       } else {
         final reply = 'I could not find a recorded macro matching "$macroName", sir.';
-        _lastJarvisSpeech = reply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = reply;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(reply);
       }
@@ -1025,26 +1025,26 @@ class JarvisService extends ChangeNotifier {
       return;
     }
 
-    // 3c. Jarvis Eye Optical Perception fast trigger
+    // 3c. VI Eye Optical Perception fast trigger
     if (lower.contains('look at this') ||
         lower.contains('what is this') ||
         lower.contains('scan this') ||
         lower.contains('inspect this') ||
         lower.contains('jarvis eye') ||
         lower.contains('what do you see')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'OPTICAL SENSORS ACTIVE // SCANNING';
       notifyListeners();
 
       const ack = 'Optical sensors engaged, sir. Inspecting the subject now.';
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(ack);
 
       final result = await VisionPerceptionService.instance.inspectOpticalSnapshot(customPrompt: trimmed);
-      _lastJarvisSpeech = result.spokenSummary;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = result.spokenSummary;
+      _phase = VIPhase.speaking;
       _statusMessage = 'OPTICAL SCAN COMPLETE';
       notifyListeners();
       await _voice.speak(result.spokenSummary);
@@ -1062,13 +1062,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('turn on light') ||
         lower.contains('turn off light') ||
         lower.contains('desk lamp')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'SMART HOME IOT // DISPATCHING';
       notifyListeners();
 
       final reply = await SmartHomeService.instance.handleVoiceCommand(trimmed);
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'SMART HOME ACTIVE';
       notifyListeners();
       await _voice.speak(reply);
@@ -1083,7 +1083,7 @@ class JarvisService extends ChangeNotifier {
         lower.contains('when should i leave') ||
         lower == 'traffic' ||
         lower == 'commute') {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'COMPUTING // COMMUTE & TRAFFIC TELEMETRY';
       notifyListeners();
 
@@ -1093,8 +1093,8 @@ class JarvisService extends ChangeNotifier {
       }
 
       final commute = await CommuteTrafficService.instance.checkCommute(destination: dest);
-      _lastJarvisSpeech = commute.spokenSummary;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = commute.spokenSummary;
+      _phase = VIPhase.speaking;
       _statusMessage = 'COMMUTE REPORT';
       notifyListeners();
       await _voice.speak(commute.spokenSummary);
@@ -1112,23 +1112,23 @@ class JarvisService extends ChangeNotifier {
         lower.contains('summarize the page') ||
         lower.contains('read this article') ||
         lower.contains('article summary')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'COMPUTING // SUMMARIZING ARTICLE';
       notifyListeners();
 
       final ack = 'Analyzing foreground screen article, sir. One moment.';
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(ack);
 
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'SYNTHESIZING EXECUTIVE BRIEFING';
       notifyListeners();
 
-      final summary = await JarvisToolsService.instance.summarizeForegroundScreen();
-      _lastJarvisSpeech = summary;
-      _phase = JarvisPhase.speaking;
+      final summary = await VIToolsService.instance.summarizeForegroundScreen();
+      _lastVISpeech = summary;
+      _phase = VIPhase.speaking;
       _statusMessage = 'ARTICLE SUMMARY READY';
       notifyListeners();
       await _voice.speak(summary);
@@ -1156,7 +1156,7 @@ class JarvisService extends ChangeNotifier {
              lower.contains('protocal')));
 
     if (isSentryCommand) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       notifyListeners();
 
       final isDisarm = lower.contains('deactivat') ||
@@ -1193,7 +1193,7 @@ class JarvisService extends ChangeNotifier {
         notifyListeners();
         await SentryService.instance.armSentry();
       }
-      _phase = JarvisPhase.idle;
+      _phase = VIPhase.idle;
       notifyListeners();
       if (_shouldListenContinuously) _standDown();
       return;
@@ -1213,12 +1213,12 @@ class JarvisService extends ChangeNotifier {
         lower.contains('who design you') ||
         lower.contains('who coded you') ||
         lower.contains('who write you')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       notifyListeners();
 
       final reply = PersonalityService.instance.getCreatorAnswer();
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'CREATOR // ABUZAR';
       notifyListeners();
       await _voice.speak(reply);
@@ -1234,7 +1234,7 @@ class JarvisService extends ChangeNotifier {
         lower.contains('zero touch') ||
         lower.contains('touchless') ||
         lower.contains('hand wave gesture')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'AIR GESTURES SENSORY MATRIX';
       notifyListeners();
       final isOff = lower.contains('off') ||
@@ -1250,8 +1250,8 @@ class JarvisService extends ChangeNotifier {
         reply =
             'Zero-touch air gestures engaged, sir. Wave hand to skip music, hover palm to pause, or double wave for instant screenshot.';
       }
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1267,13 +1267,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('charge speed') ||
         lower.contains('charging speed') ||
         lower.contains('charging wattage')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'ARC REACTOR CHARGING TELEMETRY';
       notifyListeners();
       ChargingTelemetryService.instance.showCinematicHud.value = true;
       final reply = await ChargingTelemetryService.instance.getSpokenTelemetry();
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1284,7 +1284,7 @@ class JarvisService extends ChangeNotifier {
     // Superpower 3: 🌐 Polyglot Diplomat (Live Two-Way Voice Translator)
     // -----------------------------------------------------------------
     if (lower.startsWith('translate ') && lower.contains(' to ')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'POLYGLOT DIPLOMAT // TRANSLATING';
       notifyListeners();
       final phrase = trimmed
@@ -1299,8 +1299,8 @@ class JarvisService extends ChangeNotifier {
       final res = await PolyglotDiplomatService.instance
           .translate(text: phrase, toLang: target);
       final reply = 'Translated to $target, sir: $res';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1312,14 +1312,14 @@ class JarvisService extends ChangeNotifier {
         lower.contains('voice translator') ||
         lower.startsWith('translate between') ||
         lower.contains('diplomat translator')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'POLYGLOT DIPLOMAT // TRANSLATOR';
       notifyListeners();
       _showModalSafely(const PolyglotDiplomatDialog());
       const reply =
           'Polyglot Diplomat active, sir. Ready for real-time diplomatic two-way voice translation.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1333,11 +1333,11 @@ class JarvisService extends ChangeNotifier {
         lower.contains('deceptive lockout') ||
         lower.contains('kernel panic screen') ||
         lower.contains('emergency lockdown')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'CODE BLACK // HARDWARE LOCKOUT';
       notifyListeners();
       await CodeBlackService.instance.arm();
-      _phase = JarvisPhase.idle;
+      _phase = VIPhase.idle;
       notifyListeners();
       return;
     }
@@ -1349,7 +1349,7 @@ class JarvisService extends ChangeNotifier {
         lower.contains('floating assistant') ||
         lower.contains('screen copilot') ||
         lower.contains('screen assistant')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'HOLOGRAPHIC FLOATING CO-PILOT';
       notifyListeners();
       final isOff = lower.contains('hide') ||
@@ -1365,8 +1365,8 @@ class JarvisService extends ChangeNotifier {
         reply =
             'Holographic floating co-pilot active, sir. Standing by above active applications with contextual screen triage.';
       }
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1383,13 +1383,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('airspace radar') ||
         lower.contains('where is the iss') ||
         lower.contains('satellite pass')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'AIRSPACE & SATELLITE RADAR SWEEP';
       notifyListeners();
       _showModalSafely(const AirspaceRadarDialog());
       final reply = await AirspaceRadarService.instance.getSpokenAirspaceReport();
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1400,20 +1400,20 @@ class JarvisService extends ChangeNotifier {
     // Superpower 7: 🧠 "Chaotic Brain Dump" Multi-Task Decoupler
     // -----------------------------------------------------------------
     if (MultiTaskDecouplerService.instance.isMultiTaskDump(trimmed)) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'DECOUPLING MULTI-TASK DUMP';
       notifyListeners();
       const ack =
           'Deconstructing your multi-task dump into parallel directives, sir. Executing now.';
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
       final ackFuture = _voice.speak(ack);
       final dumpFuture = MultiTaskDecouplerService.instance.processBrainDump(trimmed);
       await ackFuture;
       final summary = await dumpFuture;
-      _lastJarvisSpeech = summary;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = summary;
+      _phase = VIPhase.speaking;
       _statusMessage = 'MULTI-TASK EXECUTION COMPLETE';
       notifyListeners();
       await _voice.speak(summary);
@@ -1432,20 +1432,20 @@ class JarvisService extends ChangeNotifier {
         lower.contains('split this bill') ||
         lower.contains('solve math') ||
         lower.contains('analyze circuit')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'REAL-TIME OPTICAL HUD SOLVER';
       notifyListeners();
       _showModalSafely(const OpticalSolverDialog());
       const ack = 'Target acquired in optical viewfinder, sir. Solving now.';
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
       final ackFuture = _voice.speak(ack);
       final solveFuture = OpticalSolverService.instance.pointAndSolve(customQuery: trimmed);
       await ackFuture;
       final res = await solveFuture;
-      _lastJarvisSpeech = res.spokenSummary;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = res.spokenSummary;
+      _phase = VIPhase.speaking;
       _statusMessage = 'TARGET RESOLVED';
       notifyListeners();
       await _voice.speak(res.spokenSummary);
@@ -1463,21 +1463,21 @@ class JarvisService extends ChangeNotifier {
         lower.contains('network devices') ||
         lower.contains('network security') ||
         lower.contains('port scan')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'TACTICAL NETWORK CYBER AUDIT';
       notifyListeners();
       _showModalSafely(const NetworkAuditDialog());
       const ack =
           'Initiating tactical network cyber security audit on your local subnet, sir.';
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
       final ackFuture = _voice.speak(ack);
       final auditFuture = NetworkAuditService.instance.getSpokenAuditReport();
       await ackFuture;
       final report = await auditFuture;
-      _lastJarvisSpeech = report;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = report;
+      _phase = VIPhase.speaking;
       _statusMessage = 'NETWORK AUDIT COMPLETE';
       notifyListeners();
       await _voice.speak(report);
@@ -1498,13 +1498,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('how much space is free') ||
         lower.contains('phone specifications') ||
         lower.contains('android version')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'HARDWARE TELEMETRY // DIRECT';
       notifyListeners();
 
       final specs = await SystemDiagnosticsService.instance.getDiagnosticsSpoken();
-      _lastJarvisSpeech = specs;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = specs;
+      _phase = VIPhase.speaking;
       _statusMessage = 'TELEMETRY NOMINAL';
       notifyListeners();
       await _voice.speak(specs);
@@ -1519,13 +1519,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('list my apps') ||
         lower.contains('top installed apps') ||
         lower.contains('top 10 apps')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'INDEXING // INSTALLED APPS';
       notifyListeners();
 
       final appsSpoken = await AppUsageService.instance.getInstalledAppsSpoken();
-      _lastJarvisSpeech = appsSpoken;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = appsSpoken;
+      _phase = VIPhase.speaking;
       _statusMessage = 'APPS INDEXED';
       notifyListeners();
       await _voice.speak(appsSpoken);
@@ -1541,13 +1541,13 @@ class JarvisService extends ChangeNotifier {
         lower.contains('screen time') ||
         lower.contains('app usage') ||
         lower.contains('top used apps')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'USAGE TELEMETRY // STATS';
       notifyListeners();
 
       final usageSpoken = await AppUsageService.instance.getTopUsedAppsSpoken();
-      _lastJarvisSpeech = usageSpoken;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = usageSpoken;
+      _phase = VIPhase.speaking;
       _statusMessage = 'USAGE STATS COMPLETE';
       notifyListeners();
       await _voice.speak(usageSpoken);
@@ -1564,7 +1564,7 @@ class JarvisService extends ChangeNotifier {
         lower.contains('sound radar') ||
         lower.contains('listen to the room') ||
         lower.contains('what do you hear')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'ACOUSTIC SENSORS ACTIVE';
       notifyListeners();
 
@@ -1573,8 +1573,8 @@ class JarvisService extends ChangeNotifier {
           ? await SoundRadarService.instance.identifyMusic()
           : await SoundRadarService.instance.scanAmbientEnvironment();
 
-      _lastJarvisSpeech = result;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = result;
+      _phase = VIPhase.speaking;
       _statusMessage = 'ACOUSTIC SCAN COMPLETE';
       notifyListeners();
       await _voice.speak(result);
@@ -1588,7 +1588,7 @@ class JarvisService extends ChangeNotifier {
         (lower.contains('file') || lower.contains('song') || lower.contains('download') || lower.contains('notes.txt'));
 
     if (isStorageList) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'STORAGE // QUERYING DIRECTORY';
       notifyListeners();
 
@@ -1597,8 +1597,8 @@ class JarvisService extends ChangeNotifier {
       final reply = files.isNotEmpty
           ? 'Files located in your Download directory include: $files, sir.'
           : 'Your Download directory is currently empty, sir.';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'STORAGE INDEXED';
       notifyListeners();
       await _voice.speak(reply);
@@ -1607,7 +1607,7 @@ class JarvisService extends ChangeNotifier {
     }
 
     if (isStorageCreate) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'STORAGE CRUD // EXECUTING DIRECTLY';
       notifyListeners();
 
@@ -1648,8 +1648,8 @@ Mastering the boundless road.
           ? 'I have created the file "$fileName" directly in your Downloads directory and written the contents into it, sir. Executed directly without accessing system settings or file managers.'
           : 'Storage operation encountered an exception: ${res['message'] ?? 'Permission or I/O failure'}, sir.';
 
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'STORAGE FILE CREATED';
       notifyListeners();
       await _voice.speak(reply);
@@ -1668,8 +1668,8 @@ Mastering the boundless road.
           .trim();
       final targetApp = appName.isNotEmpty ? appName : 'app';
       final ack = PersonalityService.instance.getInstallAck(targetApp);
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       _statusMessage = 'INSTALLING: ${targetApp.toUpperCase()}';
       notifyListeners();
       await _voice.speak(ack);
@@ -1685,24 +1685,24 @@ Mastering the boundless road.
           await AppLauncherService.instance.launch('com.android.vending');
         }
       } catch (e) {
-        debugPrint('[JarvisService] Play Store direct launch error: $e');
+        debugPrint('[VIService] Play Store direct launch error: $e');
         await AppLauncherService.instance.launch('com.android.vending');
       }
 
       // Hand off to autonomous task executor to tap "Install" on the screen!
-      _phase = JarvisPhase.executing;
+      _phase = VIPhase.executing;
       notifyListeners();
       final status = await _executor.executeTask('install $targetApp on Play Store');
-      _phase = JarvisPhase.speaking;
+      _phase = VIPhase.speaking;
       if (status == TaskStatus.success) {
         final doneSpeech = 'I have engaged the installation of $targetApp for you. Let me know when you are ready to use it.';
-        _lastJarvisSpeech = doneSpeech;
+        _lastVISpeech = doneSpeech;
         _statusMessage = 'INSTALLATION INITIATED';
         notifyListeners();
         await _voice.speak(doneSpeech);
       } else {
         final standDownSpeech = 'Play Store is open for $targetApp. Tap Install or let me know if you need assistance.';
-        _lastJarvisSpeech = standDownSpeech;
+        _lastVISpeech = standDownSpeech;
         _statusMessage = 'PLAY STORE READY';
         notifyListeners();
         await _voice.speak(standDownSpeech);
@@ -1723,8 +1723,8 @@ Mastering the boundless road.
         final launched = await AppLauncherService.instance.launch(appName);
         if (launched != null) {
           final ack = PersonalityService.instance.getAppAck(appName);
-          _lastJarvisSpeech = ack;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = ack;
+          _phase = VIPhase.speaking;
           _statusMessage = 'LAUNCHING: ${appName.toUpperCase()}';
           notifyListeners();
           await _voice.speak(ack);
@@ -1767,8 +1767,8 @@ Mastering the boundless road.
       }
 
       final ack = PersonalityService.instance.getMusicAck(songQuery);
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       _statusMessage = 'PLAYING: ${songQuery.toUpperCase()}';
       notifyListeners();
 
@@ -1794,7 +1794,7 @@ Mastering the boundless road.
         try {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         } catch (e) {
-          debugPrint('[JarvisService] Play song launch error: $e');
+          debugPrint('[VIService] Play song launch error: $e');
           await AppLauncherService.instance.launch('com.google.android.youtube');
         }
         await Future.delayed(const Duration(milliseconds: 1400));
@@ -1828,7 +1828,7 @@ Mastering the boundless road.
     !lower.contains('battery');
 
     if (isKnowledgeQuestion) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'PROCESSING INQUIRY // NEURAL CORE';
       notifyListeners();
 
@@ -1845,16 +1845,16 @@ Mastering the boundless road.
 
       // 1. Instantly speak a warm, personalized acknowledgment
       final ack = PersonalityService.instance.getQuestionAck(trimmed);
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
 
       // Concurrently speak acknowledgment and fetch multi-source web/encyclopedic records
       final speakAckFuture = _voice.speak(ack);
-      final searchFuture = JarvisToolsService.instance.searchWeb(topic.isNotEmpty ? topic : trimmed);
+      final searchFuture = VIToolsService.instance.searchWeb(topic.isNotEmpty ? topic : trimmed);
       final searchResult = await searchFuture;
 
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'SYNTHESIZING EXPLANATION';
       notifyListeners();
 
@@ -1872,8 +1872,8 @@ Mastering the boundless road.
       await speakAckFuture;
       final answer = await answerFuture;
 
-      _lastJarvisSpeech = answer;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = answer;
+      _phase = VIPhase.speaking;
       _statusMessage = 'EXPLANATION COMPLETE';
       notifyListeners();
       await _voice.speak(answer);
@@ -1893,7 +1893,7 @@ Mastering the boundless road.
     if (SettingsService.instance.jarvisWorkflowsEnabled) {
       final matchedWf = WorkflowService.instance.findMatch(trimmed);
       if (matchedWf != null) {
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = 'COMPUTING // ENGAGING ${matchedWf.name.toUpperCase()}';
         notifyListeners();
 
@@ -1901,8 +1901,8 @@ Mastering the boundless road.
         await WorkflowService.instance.executeWorkflow(matchedWf);
 
         // 2. Deliver completion with caring follow-up
-        _phase = JarvisPhase.speaking;
-        _lastJarvisSpeech = matchedWf.spokenConfirmation;
+        _phase = VIPhase.speaking;
+        _lastVISpeech = matchedWf.spokenConfirmation;
         _statusMessage = '${matchedWf.name.toUpperCase()} ACTIVE';
         notifyListeners();
         await _voice.speak(matchedWf.spokenConfirmation);
@@ -1916,14 +1916,14 @@ Mastering the boundless road.
         lower == 'system status' ||
         lower == 'diagnostics' ||
         lower == 'systems check') {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'COMPUTING // RUNNING DIAGNOSTICS';
       notifyListeners();
 
-      final summary = await JarvisToolsService.instance.getSystemDiagnostics();
+      final summary = await VIToolsService.instance.getSystemDiagnostics();
       final delivery = '$summary How else may I assist you today, sir?';
-      _lastJarvisSpeech = delivery;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = delivery;
+      _phase = VIPhase.speaking;
       _statusMessage = 'SYSTEMS NOMINAL';
       notifyListeners();
       await _voice.speak(delivery);
@@ -1937,18 +1937,18 @@ Mastering the boundless road.
         lower == 'battery percentage' ||
         lower.contains('how much battery') ||
         lower.contains('battery status')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'COMPUTING // BATTERY DIAGNOSTICS';
       notifyListeners();
 
-      final battery = await JarvisToolsService.instance.getBatteryStatus();
+      final battery = await VIToolsService.instance.getBatteryStatus();
       final level = battery['level'] as int;
       final isCharging = battery['isCharging'] as bool;
       final reply = level >= 0
           ? 'Your battery is currently at $level%, ${isCharging ? 'and charging' : 'discharging normally'}, sir. We have ample power for your tasks. Do you need anything else, sir?'
           : 'Battery telemetry is currently unavailable, sir. Is there anything else I can check for you?';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       notifyListeners();
       await _voice.speak(reply);
       await _startFollowUpListening();
@@ -1960,14 +1960,14 @@ Mastering the boundless road.
         lower.contains('torch on') ||
         lower.contains('turn on flashlight') ||
         lower.contains('turn on the torch')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'COMPUTING // ACTIVATING TORCH';
       notifyListeners();
 
-      await JarvisToolsService.instance.setTorch(true);
+      await VIToolsService.instance.setTorch(true);
       const delivery = 'Flashlight is on, sir. Let me know when you would like it switched off.';
-      _lastJarvisSpeech = delivery;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = delivery;
+      _phase = VIPhase.speaking;
       _statusMessage = 'TORCH ACTIVE';
       notifyListeners();
       await _voice.speak(delivery);
@@ -1978,14 +1978,14 @@ Mastering the boundless road.
         lower.contains('torch off') ||
         lower.contains('turn off flashlight') ||
         lower.contains('turn off the torch')) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'COMPUTING // DEACTIVATING TORCH';
       notifyListeners();
 
-      await JarvisToolsService.instance.setTorch(false);
+      await VIToolsService.instance.setTorch(false);
       const delivery = 'Flashlight is deactivated, sir. Anything else I can do for you?';
-      _lastJarvisSpeech = delivery;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = delivery;
+      _phase = VIPhase.speaking;
       _statusMessage = 'TORCH OFFLINE';
       notifyListeners();
       await _voice.speak(delivery);
@@ -2000,10 +2000,10 @@ Mastering the boundless road.
         lower.contains('what is the date') ||
         lower == 'date' ||
         lower.contains('what day is it')) {
-      final dt = JarvisToolsService.instance.getCurrentDateTime();
+      final dt = VIToolsService.instance.getCurrentDateTime();
       final reply = 'It is currently $dt, sir. How else may I assist you today?';
-      _lastJarvisSpeech = reply;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = reply;
+      _phase = VIPhase.speaking;
       _statusMessage = 'TEMPORAL DIAGNOSTICS';
       notifyListeners();
       await _voice.speak(reply);
@@ -2052,14 +2052,14 @@ Mastering the boundless road.
       final name = trimmed.substring(5).trim();
       if (name.isNotEmpty) {
         final ack = 'Locating coordinates to call $name for you, sir. One moment.';
-        _phase = JarvisPhase.speaking;
-        _lastJarvisSpeech = ack;
+        _phase = VIPhase.speaking;
+        _lastVISpeech = ack;
         _statusMessage = 'CONTACT DIALER // $name'.toUpperCase();
         notifyListeners();
         await _voice.speak(ack);
 
-        final reply = await JarvisToolsService.instance.callContact(name);
-        _lastJarvisSpeech = reply;
+        final reply = await VIToolsService.instance.callContact(name);
+        _lastVISpeech = reply;
         notifyListeners();
         await _voice.speak(reply);
         if (_shouldListenContinuously) _standDown();
@@ -2079,7 +2079,7 @@ Mastering the boundless road.
         lower.contains('latest news');
 
     if (isNews) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'GATHERING NEWS HEADLINES';
       notifyListeners();
 
@@ -2107,17 +2107,17 @@ Mastering the boundless road.
 
       // 1. Instantly speak a warm, personalized, non-repetitive British acknowledgment!
       final ack = PersonalityService.instance.getNewsAck(topic);
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
 
       // Concurrently speak acknowledgment and fetch live multi-feed news in background
       final speakAckFuture = _voice.speak(ack);
-      final newsDataFuture = JarvisToolsService.instance.getLiveNews(topic);
+      final newsDataFuture = VIToolsService.instance.getLiveNews(topic);
 
       final newsData = await newsDataFuture;
 
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'SYNTHESIZING INTELLIGENCE BRIEFING';
       notifyListeners();
 
@@ -2132,8 +2132,8 @@ Mastering the boundless road.
       final answer = await answerFuture;
 
       // 2. Spoken reply to question
-      _lastJarvisSpeech = answer;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = answer;
+      _phase = VIPhase.speaking;
       _statusMessage = 'NEWS TELEMETRY BROADCAST';
       notifyListeners();
       await _voice.speak(answer);
@@ -2158,7 +2158,7 @@ Mastering the boundless road.
         lower.contains('search online');
 
     if (isWebSearch) {
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'INITIALIZING WEB INTELLIGENCE';
       notifyListeners();
 
@@ -2174,17 +2174,17 @@ Mastering the boundless road.
 
       // 1. Instantly speak dynamic, personalized acknowledgment
       final ack = PersonalityService.instance.getWebSearchAck(query);
-      _lastJarvisSpeech = ack;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = ack;
+      _phase = VIPhase.speaking;
       notifyListeners();
 
       // Concurrently speak acknowledgment and execute multi-source search in background
       final speakAckFuture = _voice.speak(ack);
-      final searchFuture = JarvisToolsService.instance.searchWeb(query.isNotEmpty ? query : trimmed);
+      final searchFuture = VIToolsService.instance.searchWeb(query.isNotEmpty ? query : trimmed);
 
       final searchResult = await searchFuture;
 
-      _phase = JarvisPhase.thinking;
+      _phase = VIPhase.thinking;
       _statusMessage = 'SYNTHESIZING WEB INTELLIGENCE';
       notifyListeners();
 
@@ -2197,8 +2197,8 @@ Mastering the boundless road.
       await speakAckFuture;
       final answer = await answerFuture;
 
-      _lastJarvisSpeech = answer;
-      _phase = JarvisPhase.speaking;
+      _lastVISpeech = answer;
+      _phase = VIPhase.speaking;
       _statusMessage = 'WEB INTELLIGENCE RETRIEVED';
       notifyListeners();
       await _voice.speak(answer);
@@ -2208,14 +2208,14 @@ Mastering the boundless road.
     }
 
     // 12. Full AI Intent Interpretation via AiService
-    JarvisIntent intent;
+    VIIntent intent;
     try {
-      intent = await _ai.interpretJarvisCommand(
+      intent = await _ai.interpretVICommand(
         speech: trimmed,
         history: _dialogHistory,
       );
     } catch (_) {
-      intent = JarvisIntent.fallback(trimmed);
+      intent = VIIntent.fallback(trimmed);
     }
 
     // Save short-term dialog context
@@ -2226,21 +2226,21 @@ Mastering the boundless road.
     }
 
     switch (intent.type) {
-      case JarvisIntentType.news:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.news:
+        _phase = VIPhase.thinking;
         _statusMessage = 'GATHERING NEWS HEADLINES';
         notifyListeners();
 
         final ack = PersonalityService.instance.getNewsAck(intent.toolArg);
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         notifyListeners();
 
         final speakAckFuture = _voice.speak(ack);
-        final newsFuture = JarvisToolsService.instance.getLiveNews(intent.toolArg);
+        final newsFuture = VIToolsService.instance.getLiveNews(intent.toolArg);
         final newsData = await newsFuture;
 
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = 'SYNTHESIZING INTELLIGENCE BRIEFING';
         notifyListeners();
 
@@ -2253,14 +2253,14 @@ Mastering the boundless road.
         await speakAckFuture;
         final answer = await answerFuture;
 
-        _lastJarvisSpeech = answer;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = answer;
+        _phase = VIPhase.speaking;
         _statusMessage = 'NEWS TELEMETRY BROADCAST';
         notifyListeners();
         await _voice.speak(answer);
         break;
 
-      case JarvisIntentType.workflow:
+      case VIIntentType.workflow:
         final rawArg = (intent.toolArg ?? trimmed).toLowerCase();
         // Check for Sentry Protocol / Sentry Mode within workflow intent
         if (rawArg.contains('sentry') || rawArg.contains('watchdog')) {
@@ -2284,8 +2284,8 @@ Mastering the boundless road.
         final ack = intent.spoken.isNotEmpty
             ? intent.spoken
             : 'Right away, sir. Calibrating your settings environment now.';
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         _statusMessage = 'CALIBRATING WORKFLOW PROTOCOL';
         notifyListeners();
 
@@ -2293,7 +2293,7 @@ Mastering the boundless road.
         await _voice.speak(ack);
 
         // 2. Execute workflow
-        _phase = JarvisPhase.executing;
+        _phase = VIPhase.executing;
         notifyListeners();
 
         final match = WorkflowService.instance.findMatch(intent.toolArg ?? trimmed) ??
@@ -2301,34 +2301,34 @@ Mastering the boundless road.
 
         if (match != null) {
           await WorkflowService.instance.executeWorkflow(match);
-          _lastJarvisSpeech = match.spokenConfirmation;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = match.spokenConfirmation;
+          _phase = VIPhase.speaking;
           _statusMessage = '${match.name.toUpperCase()} ACTIVE';
           notifyListeners();
           await _voice.speak(match.spokenConfirmation);
         } else {
           const fallback = 'All settings have been calibrated for you, sir. Let me know if you need anything else.';
-          _lastJarvisSpeech = fallback;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = fallback;
+          _phase = VIPhase.speaking;
           _statusMessage = 'PROTOCOL ACTIVE';
           notifyListeners();
           await _voice.speak(fallback);
         }
         break;
 
-      case JarvisIntentType.webSearch:
+      case VIIntentType.webSearch:
         final query = intent.toolArg ?? trimmed;
         final ack = PersonalityService.instance.getWebSearchAck(query);
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         _statusMessage = 'SEARCHING LIVE WEB RECORDS';
         notifyListeners();
 
         final speakAckFuture = _voice.speak(ack);
-        final searchFuture = JarvisToolsService.instance.searchWeb(query);
+        final searchFuture = VIToolsService.instance.searchWeb(query);
         final searchResult = await searchFuture;
 
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = 'SYNTHESIZING WEB INTELLIGENCE';
         notifyListeners();
 
@@ -2341,26 +2341,26 @@ Mastering the boundless road.
         await speakAckFuture;
         final answer = await answerFuture;
 
-        _lastJarvisSpeech = answer;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = answer;
+        _phase = VIPhase.speaking;
         _statusMessage = 'WEB INTELLIGENCE RETRIEVED';
         notifyListeners();
         await _voice.speak(answer);
         break;
 
-      case JarvisIntentType.weather:
+      case VIIntentType.weather:
         final loc = intent.toolArg ?? '';
         final ack = PersonalityService.instance.getWeatherAck(loc);
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         _statusMessage = 'METEOROLOGICAL TELEMETRY';
         notifyListeners();
 
         final speakAckFuture = _voice.speak(ack);
-        final weatherFuture = JarvisToolsService.instance.getWeather(loc);
+        final weatherFuture = VIToolsService.instance.getWeather(loc);
         final weatherResult = await weatherFuture;
 
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = 'SYNTHESIZING WEATHER REPORT';
         notifyListeners();
 
@@ -2373,65 +2373,65 @@ Mastering the boundless road.
         await speakAckFuture;
         final answer = await answerFuture;
 
-        _lastJarvisSpeech = answer;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = answer;
+        _phase = VIPhase.speaking;
         _statusMessage = 'METEOROLOGICAL REPORT COMPLETE';
         notifyListeners();
         await _voice.speak(answer);
         break;
 
-      case JarvisIntentType.battery:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.battery:
+        _phase = VIPhase.thinking;
         _statusMessage = 'COMPUTING // BATTERY DIAGNOSTICS';
         notifyListeners();
 
         final battery =
-            await JarvisToolsService.instance.getBatteryStatus();
+            await VIToolsService.instance.getBatteryStatus();
         final level = battery['level'] as int;
         final isCharging = battery['isCharging'] as bool;
         final battReply = level >= 0
             ? 'Your battery is currently at $level%, ${isCharging ? 'and charging' : 'discharging normally'}, sir. We have plenty of power. Do you need anything else, sir?'
             : 'Battery level telemetry is currently unavailable, sir. Is there anything else I can check?';
 
-        _lastJarvisSpeech = battReply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = battReply;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(battReply);
         break;
 
-      case JarvisIntentType.datetime:
-        _phase = JarvisPhase.speaking;
+      case VIIntentType.datetime:
+        _phase = VIPhase.speaking;
         _statusMessage = 'TEMPORAL DIAGNOSTICS';
         notifyListeners();
 
-        final dt = JarvisToolsService.instance.getCurrentDateTime();
+        final dt = VIToolsService.instance.getCurrentDateTime();
         final reply = 'It is currently $dt, sir. How else may I be of service today?';
-        _lastJarvisSpeech = reply;
+        _lastVISpeech = reply;
         notifyListeners();
         await _voice.speak(reply);
         break;
 
-      case JarvisIntentType.torch:
+      case VIIntentType.torch:
         final on = intent.toolArg == 'on';
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = on ? 'COMPUTING // ACTIVATING TORCH' : 'COMPUTING // DEACTIVATING TORCH';
         notifyListeners();
 
-        await JarvisToolsService.instance.setTorch(on);
+        await VIToolsService.instance.setTorch(on);
         final reply = on
             ? 'Flashlight is on, sir. Let me know when you would like it switched off.'
             : 'Flashlight is deactivated, sir. Anything else I can do for you?';
-        _lastJarvisSpeech = reply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = reply;
+        _phase = VIPhase.speaking;
         _statusMessage = on ? 'TORCH ACTIVE' : 'TORCH OFFLINE';
         notifyListeners();
         await _voice.speak(reply);
         break;
 
-      case JarvisIntentType.routine:
+      case VIIntentType.routine:
         final isMorning = (intent.toolArg ?? '').toLowerCase() == 'morning' ||
             trimmed.toLowerCase().contains('morning');
-        _phase = JarvisPhase.thinking;
+        _phase = VIPhase.thinking;
         _statusMessage = isMorning ? 'COMPUTING // MORNING BRIEFING' : 'COMPUTING // NIGHT PROTOCOL';
         notifyListeners();
 
@@ -2439,37 +2439,37 @@ Mastering the boundless road.
             ? await RoutineAutomationService.instance.executeMorningRoutine()
             : await RoutineAutomationService.instance.executeEveningRoutine();
 
-        _lastJarvisSpeech = briefing;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = briefing;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(briefing);
         break;
 
-      case JarvisIntentType.finance:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.finance:
+        _phase = VIPhase.thinking;
         _statusMessage = 'COMPUTING // FINANCIAL TELEMETRY';
         notifyListeners();
 
         final quote = await FinanceTrackingService.instance.getQuoteForQuery(trimmed);
-        _lastJarvisSpeech = quote;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = quote;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(quote);
         break;
 
-      case JarvisIntentType.sports:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.sports:
+        _phase = VIPhase.thinking;
         _statusMessage = 'COMPUTING // SPORTS FIXTURES';
         notifyListeners();
 
         final update = await SportsService.instance.getSportsUpdate(trimmed);
-        _lastJarvisSpeech = update;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = update;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(update);
         break;
 
-      case JarvisIntentType.todo:
+      case VIIntentType.todo:
         final lower = trimmed.toLowerCase();
         if (lower.startsWith('add ') || lower.contains('add task') || lower.contains('add to')) {
           var taskText = trimmed
@@ -2478,22 +2478,22 @@ Mastering the boundless road.
           if (taskText.isEmpty) taskText = 'Review task';
           await TodoService.instance.addTask(taskText);
           final reply = 'I have added "$taskText" to your to-do agenda, sir. Anything else?';
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'TODO ITEM RECORDED';
           notifyListeners();
           await _voice.speak(reply);
         } else {
           final reply = TodoService.instance.getPendingTasksSpoken();
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'TASK AGENDA';
           notifyListeners();
           await _voice.speak(reply);
         }
         break;
 
-      case JarvisIntentType.notes:
+      case VIIntentType.notes:
         final lower = trimmed.toLowerCase();
         if (lower.startsWith('take a note') || lower.startsWith('note down') || lower.startsWith('write a note')) {
           var noteContent = trimmed
@@ -2505,22 +2505,22 @@ Mastering the boundless road.
             content: noteContent,
           );
           final reply = 'Note saved in your personal knowledge base, sir: "$noteContent".';
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'KNOWLEDGE RECORD SAVED';
           notifyListeners();
           await _voice.speak(reply);
         } else {
           final reply = NotesKnowledgeService.instance.searchNotesSpoken(trimmed);
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'KNOWLEDGE RETRIEVAL';
           notifyListeners();
           await _voice.speak(reply);
         }
         break;
 
-      case JarvisIntentType.calendar:
+      case VIIntentType.calendar:
         final lower = trimmed.toLowerCase();
         if (lower.startsWith('remind me to ') || lower.startsWith('set a reminder for ')) {
           final reminderText = trimmed
@@ -2532,22 +2532,22 @@ Mastering the boundless road.
             isReminder: true,
           );
           final reply = 'I have set a reminder for "$reminderText", sir.';
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'REMINDER SCHEDULED';
           notifyListeners();
           await _voice.speak(reply);
         } else {
           final reply = CalendarReminderService.instance.getTodayBriefingSpoken();
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'CALENDAR SCHEDULE';
           notifyListeners();
           await _voice.speak(reply);
         }
         break;
 
-      case JarvisIntentType.email:
+      case VIIntentType.email:
         final lowerEmail = trimmed.toLowerCase();
         final isInboxCheck = lowerEmail.contains('read') ||
             lowerEmail.contains('check') ||
@@ -2564,14 +2564,14 @@ Mastering the boundless road.
           emailReply = '${triage.summary} Priority is flagged as ${triage.priority.name}. Would you like me to open a draft reply for you, sir?';
         }
 
-        _lastJarvisSpeech = emailReply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = emailReply;
+        _phase = VIPhase.speaking;
         _statusMessage = 'EMAIL INBOX PROCESSED';
         notifyListeners();
         await _voice.speak(emailReply);
         break;
 
-      case JarvisIntentType.message:
+      case VIIntentType.message:
         final lowerMsg = trimmed.toLowerCase();
         final isSmsCheck = lowerMsg.contains('read') ||
             lowerMsg.contains('check') ||
@@ -2583,16 +2583,16 @@ Mastering the boundless road.
 
         if (isSmsCheck) {
           final smsReply = await InboxService.instance.getSmsSummary();
-          _lastJarvisSpeech = smsReply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = smsReply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'SMS INBOX PROCESSED';
           notifyListeners();
           await _voice.speak(smsReply);
         } else {
           final draftText = await MessageDraftingService.instance.draftMessageContent(prompt: trimmed);
           final reply = 'I have prepared this message draft for you, sir: "$draftText". Would you like me to dispatch it?';
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           _statusMessage = 'MESSAGE DRAFT PREPARED';
           notifyListeners();
           await _voice.speak(reply);
@@ -2606,13 +2606,13 @@ Mastering the boundless road.
         }
         break;
 
-      case JarvisIntentType.vision:
+      case VIIntentType.vision:
         final isScreen = trimmed.toLowerCase().contains('screen');
         final ack = isScreen
             ? 'Scanning active screen elements, sir.'
-            : 'Jarvis Eye optical sensors engaged, sir. Inspecting the subject now.';
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+            : 'VI Eye optical sensors engaged, sir. Inspecting the subject now.';
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         _statusMessage = 'OPTICAL SENSORS ACTIVE';
         notifyListeners();
         await _voice.speak(ack);
@@ -2621,48 +2621,48 @@ Mastering the boundless road.
             ? await ProactiveAgentService.instance.analyzeCurrentScreen(userQuestion: trimmed)
             : (await VisionPerceptionService.instance.inspectOpticalSnapshot(customPrompt: trimmed)).spokenSummary;
 
-        _lastJarvisSpeech = analysis;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = analysis;
+        _phase = VIPhase.speaking;
         _statusMessage = 'OPTICAL SCAN COMPLETE';
         notifyListeners();
         await _voice.speak(analysis);
         break;
 
-      case JarvisIntentType.smartHome:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.smartHome:
+        _phase = VIPhase.thinking;
         _statusMessage = 'SMART HOME IOT // DISPATCHING';
         notifyListeners();
 
         final reply = await SmartHomeService.instance.handleVoiceCommand(trimmed);
-        _lastJarvisSpeech = reply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = reply;
+        _phase = VIPhase.speaking;
         _statusMessage = 'SMART HOME ACTIVE';
         notifyListeners();
         await _voice.speak(reply);
         break;
 
-      case JarvisIntentType.commute:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.commute:
+        _phase = VIPhase.thinking;
         _statusMessage = 'COMPUTING // COMMUTE & TRAFFIC TELEMETRY';
         notifyListeners();
 
         final commute = await CommuteTrafficService.instance.checkCommute(destination: intent.toolArg);
-        _lastJarvisSpeech = commute.spokenSummary;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = commute.spokenSummary;
+        _phase = VIPhase.speaking;
         _statusMessage = 'COMMUTE REPORT';
         notifyListeners();
         await _voice.speak(commute.spokenSummary);
         break;
 
-      case JarvisIntentType.macro:
+      case VIIntentType.macro:
         final lowerMacro = trimmed.toLowerCase();
         if (lowerMacro.startsWith('stop recording') || lowerMacro.startsWith('save macro')) {
           final skill = await MacroRecorderService.instance.stopRecording();
           final reply = skill != null
               ? 'Macro "${skill.goal}" saved and codified into AGENT.md, sir.'
               : 'Macro recording concluded, sir.';
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           notifyListeners();
           await _voice.speak(reply);
         } else if (lowerMacro.startsWith('run macro') || lowerMacro.startsWith('replay macro')) {
@@ -2670,15 +2670,15 @@ Mastering the boundless road.
           final match = await SkillMemoryService.instance.findMatch(macroName);
           if (match != null) {
             final reply = 'Replaying macro "${match.goal}", sir.';
-            _lastJarvisSpeech = reply;
-            _phase = JarvisPhase.speaking;
+            _lastVISpeech = reply;
+            _phase = VIPhase.speaking;
             notifyListeners();
             await _voice.speak(reply);
             await MacroRecorderService.instance.replaySkill(match);
           } else {
             final reply = 'No matching macro found for "$macroName", sir.';
-            _lastJarvisSpeech = reply;
-            _phase = JarvisPhase.speaking;
+            _lastVISpeech = reply;
+            _phase = VIPhase.speaking;
             notifyListeners();
             await _voice.speak(reply);
           }
@@ -2686,15 +2686,15 @@ Mastering the boundless road.
           final goal = intent.toolArg ?? 'Custom Task';
           await MacroRecorderService.instance.startRecording(goal);
           final reply = 'Macro recording started for "$goal", sir. Perform your actions, then say "save macro".';
-          _lastJarvisSpeech = reply;
-          _phase = JarvisPhase.speaking;
+          _lastVISpeech = reply;
+          _phase = VIPhase.speaking;
           notifyListeners();
           await _voice.speak(reply);
         }
         break;
 
-      case JarvisIntentType.airGestures:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.airGestures:
+        _phase = VIPhase.thinking;
         _statusMessage = 'AIR GESTURES SENSORY MATRIX';
         notifyListeners();
         final raw = (intent.toolArg ?? trimmed).toLowerCase();
@@ -2711,48 +2711,48 @@ Mastering the boundless road.
           gestureReply =
               'Zero-touch air gestures engaged, sir. Wave over the screen to skip tracks, hover palm to pause, or double wave for instant screenshot.';
         }
-        _lastJarvisSpeech = gestureReply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = gestureReply;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(gestureReply);
         break;
 
-      case JarvisIntentType.chargingTelemetry:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.chargingTelemetry:
+        _phase = VIPhase.thinking;
         _statusMessage = 'ARC REACTOR CHARGING TELEMETRY';
         notifyListeners();
         ChargingTelemetryService.instance.showCinematicHud.value = true;
         final chargingReport = await ChargingTelemetryService.instance.getSpokenTelemetry();
-        _lastJarvisSpeech = chargingReport;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = chargingReport;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(chargingReport);
         break;
 
-      case JarvisIntentType.polyglotDiplomat:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.polyglotDiplomat:
+        _phase = VIPhase.thinking;
         _statusMessage = 'POLYGLOT DIPLOMAT // TRANSLATION';
         notifyListeners();
         _showModalSafely(const PolyglotDiplomatDialog());
         const transAck =
             'Polyglot Diplomat initialized, sir. Ready for real-time diplomatic translation.';
-        _lastJarvisSpeech = transAck;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = transAck;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(transAck);
         break;
 
-      case JarvisIntentType.codeBlack:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.codeBlack:
+        _phase = VIPhase.thinking;
         _statusMessage = 'CODE BLACK // HARDWARE LOCKOUT';
         notifyListeners();
         await CodeBlackService.instance.arm();
-        _phase = JarvisPhase.idle;
+        _phase = VIPhase.idle;
         notifyListeners();
         break;
 
-      case JarvisIntentType.floatingCopilot:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.floatingCopilot:
+        _phase = VIPhase.thinking;
         _statusMessage = 'HOLOGRAPHIC FLOATING CO-PILOT';
         notifyListeners();
         final rawCopilot = (intent.toolArg ?? trimmed).toLowerCase();
@@ -2769,80 +2769,80 @@ Mastering the boundless road.
           copilotReply =
               'Holographic floating co-pilot active, sir. Hovering over active applications with live screen context triage.';
         }
-        _lastJarvisSpeech = copilotReply;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = copilotReply;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(copilotReply);
         break;
 
-      case JarvisIntentType.airspaceRadar:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.airspaceRadar:
+        _phase = VIPhase.thinking;
         _statusMessage = 'AIRSPACE & SATELLITE RADAR';
         notifyListeners();
         _showModalSafely(const AirspaceRadarDialog());
         final radarReport = await AirspaceRadarService.instance.getSpokenAirspaceReport();
-        _lastJarvisSpeech = radarReport;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = radarReport;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(radarReport);
         break;
 
-      case JarvisIntentType.multiTaskDump:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.multiTaskDump:
+        _phase = VIPhase.thinking;
         _statusMessage = 'MULTI-TASK DECOUPLER';
         notifyListeners();
         final decoupledReport = await MultiTaskDecouplerService.instance.processBrainDump(trimmed);
-        _lastJarvisSpeech = decoupledReport;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = decoupledReport;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(decoupledReport);
         break;
 
-      case JarvisIntentType.opticalSolver:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.opticalSolver:
+        _phase = VIPhase.thinking;
         _statusMessage = 'REAL-TIME OPTICAL HUD SOLVER';
         notifyListeners();
         _showModalSafely(const OpticalSolverDialog());
         final solveResult =
             await OpticalSolverService.instance.pointAndSolve(customQuery: trimmed);
-        _lastJarvisSpeech = solveResult.spokenSummary;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = solveResult.spokenSummary;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(solveResult.spokenSummary);
         break;
 
-      case JarvisIntentType.networkAudit:
-        _phase = JarvisPhase.thinking;
+      case VIIntentType.networkAudit:
+        _phase = VIPhase.thinking;
         _statusMessage = 'NETWORK SECURITY AUDIT';
         notifyListeners();
         _showModalSafely(const NetworkAuditDialog());
         final netReport = await NetworkAuditService.instance.getSpokenAuditReport();
-        _lastJarvisSpeech = netReport;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = netReport;
+        _phase = VIPhase.speaking;
         notifyListeners();
         await _voice.speak(netReport);
         break;
 
-      case JarvisIntentType.multistep:
+      case VIIntentType.multistep:
         final ack = 'Initiating multi-step execution protocol for you, sir.';
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         _statusMessage = 'MULTI-STEP PROTOCOL';
         notifyListeners();
         await _voice.speak(ack);
 
         final steps = await ProactiveAgentService.instance.planMultiStepGoal(trimmed);
         final planSpoken = 'I have broken down this goal into ${steps.length} sequential steps, sir: ${steps.join("; ")}. Commencing first step now.';
-        _lastJarvisSpeech = planSpoken;
+        _lastVISpeech = planSpoken;
         notifyListeners();
         await _voice.speak(planSpoken);
         break;
 
-      case JarvisIntentType.system:
+      case VIIntentType.system:
         await _handleSystemCommand(intent.systemCommand ?? '', intent.spoken);
         break;
 
-      case JarvisIntentType.action:
+      case VIIntentType.action:
         final goal = intent.actionGoal ?? trimmed;
 
         // Foundation: Permission system check before risky actions
@@ -2850,8 +2850,8 @@ Mastering the boundless road.
           final assessment = SecurityAlertService.instance.evaluateActionRisk(goal);
           if (assessment.requiresConfirmation) {
             final confirmPrompt = 'Sir, this action involves high-risk operations: ${assessment.reason}. Do you confirm execution?';
-            _lastJarvisSpeech = confirmPrompt;
-            _phase = JarvisPhase.speaking;
+            _lastVISpeech = confirmPrompt;
+            _phase = VIPhase.speaking;
             _statusMessage = 'CONFIRMATION REQUIRED // HIGH RISK';
             notifyListeners();
             await _voice.speak(confirmPrompt);
@@ -2864,8 +2864,8 @@ Mastering the boundless road.
         final ack = intent.spoken.isNotEmpty
             ? intent.spoken
             : 'Right away, sir. I will take care of that on your device right now.';
-        _lastJarvisSpeech = ack;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = ack;
+        _phase = VIPhase.speaking;
         _statusMessage = 'PROTOCOL ENGAGED // $goal'.toUpperCase();
         notifyListeners();
 
@@ -2873,47 +2873,47 @@ Mastering the boundless road.
         await _voice.speak(ack);
 
         // 2. Execute automation task on device
-        _phase = JarvisPhase.executing;
+        _phase = VIPhase.executing;
         notifyListeners();
         final status = await _executor.executeTask(goal);
 
         // 3. Deliver completion with caring follow-up
-        _phase = JarvisPhase.speaking;
+        _phase = VIPhase.speaking;
         if (status == TaskStatus.success) {
           const successSpeech = 'I have completed that task for you, sir. Is there anything else you need?';
-          _lastJarvisSpeech = successSpeech;
+          _lastVISpeech = successSpeech;
           _statusMessage = 'PROTOCOL FINISHED // SUCCESS';
           notifyListeners();
           await _voice.speak(successSpeech);
         } else if (status == TaskStatus.cancelled) {
           const cancelledSpeech = 'The task was cancelled, sir. What would you like me to do instead?';
-          _lastJarvisSpeech = cancelledSpeech;
+          _lastVISpeech = cancelledSpeech;
           _statusMessage = 'PROTOCOL CANCELLED';
           notifyListeners();
           await _voice.speak(cancelledSpeech);
         } else {
           const failedSpeech =
               'I encountered an obstruction with that task on the screen, sir. Would you like me to try again?';
-          _lastJarvisSpeech = failedSpeech;
+          _lastVISpeech = failedSpeech;
           _statusMessage = 'PROTOCOL FAILED';
           notifyListeners();
           await _voice.speak(failedSpeech);
         }
         break;
 
-      case JarvisIntentType.chat:
+      case VIIntentType.chat:
         String chatAnswer = intent.spoken;
         if (chatAnswer.trim().isEmpty ||
             chatAnswer.length < 25 ||
             chatAnswer.toLowerCase().contains('at your service') ||
             chatAnswer.toLowerCase().contains('what would you like me to do')) {
-          _phase = JarvisPhase.thinking;
+          _phase = VIPhase.thinking;
           _statusMessage = 'PROCESSING // NEURAL CORE';
           notifyListeners();
           chatAnswer = await _ai.chat(message: trimmed, history: _dialogHistory);
         }
-        _lastJarvisSpeech = chatAnswer;
-        _phase = JarvisPhase.speaking;
+        _lastVISpeech = chatAnswer;
+        _phase = VIPhase.speaking;
         _statusMessage = 'VOCAL RESPONSE COMPLETE';
         notifyListeners();
         await _voice.speak(chatAnswer);
@@ -2921,7 +2921,7 @@ Mastering the boundless road.
     }
 
     // Persist conversation turn and auto-extract user preferences/facts across sessions
-    unawaited(ConversationalMemoryService.instance.recordTurn(trimmed, _lastJarvisSpeech));
+    unawaited(ConversationalMemoryService.instance.recordTurn(trimmed, _lastVISpeech));
 
     // Follow-up hands-free continuous listening
     await _startFollowUpListening();
@@ -2929,8 +2929,8 @@ Mastering the boundless road.
 
   Future<void> _handleSystemCommand(String cmd, String spoken) async {
     final speech = spoken.isNotEmpty ? spoken : PersonalityService.instance.getGeneralAck();
-    _lastJarvisSpeech = speech;
-    _phase = JarvisPhase.speaking;
+    _lastVISpeech = speech;
+    _phase = VIPhase.speaking;
     _statusMessage = 'SYSTEM OVERRIDE // $cmd'.toUpperCase();
     notifyListeners();
 
@@ -2991,7 +2991,7 @@ Mastering the boundless road.
         }
       }
     } catch (e) {
-      debugPrint('[JarvisService] YouTube top video lookup error: $e');
+      debugPrint('[VIService] YouTube top video lookup error: $e');
     }
     return null;
   }
