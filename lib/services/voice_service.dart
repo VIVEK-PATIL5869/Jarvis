@@ -244,14 +244,14 @@ class VoiceService {
     } catch (_) {}
   }
 
-  /// Sanitizes text so speech synthesizers pronounce acronyms like Jarvis naturally
+  /// Sanitizes text so speech synthesizers pronounce acronyms like VI naturally
   /// instead of spelling out letters like "J dot A dot R dot V dot I dot S".
   String sanitizeForSpeech(String text) {
     return text
-        .replaceAll(RegExp(r'J\.A\.R\.V\.I\.S\.?', caseSensitive: false), 'Jarvis')
-        .replaceAll(RegExp(r'\bJ\.A\.R\.V\.I\.S\b', caseSensitive: false), 'Jarvis')
-        .replaceAll(RegExp(r'J\s*\.\s*A\s*\.\s*R\s*\.\s*V\s*\.\s*I\s*\.\s*S\.?', caseSensitive: false), 'Jarvis')
-        .replaceAll(RegExp(r'\bJARVIS\b'), 'Jarvis')
+        .replaceAll(RegExp(r'J\.A\.R\.V\.I\.S\.?', caseSensitive: false), 'VI')
+        .replaceAll(RegExp(r'\bJ\.A\.R\.V\.I\.S\b', caseSensitive: false), 'VI')
+        .replaceAll(RegExp(r'J\s*\.\s*A\s*\.\s*R\s*\.\s*V\s*\.\s*I\s*\.\s*S\.?', caseSensitive: false), 'VI')
+        .replaceAll(RegExp(r'\bVI\b'), 'VI')
         .replaceAll('*', '')
         .replaceAll('#', '')
         .replaceAll('`', '')
