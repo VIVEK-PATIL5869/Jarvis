@@ -325,8 +325,8 @@ class VIService extends ChangeNotifier {
     // 1. Normalize acronyms, punctuation, and multiple spaces
     var normalized = raw
         .replaceAll(
-          RegExp(r'j\s*\.?\s*a\s*\.?\s*r\s*\.?\s*v\s*\.?\s*i\s*\.?\s*s\.?', caseSensitive: false),
-          'jarvis',
+          RegExp(r'\bv\s*\.?\s*i\.?\b', caseSensitive: false),
+          'vi',
         )
         .replaceAll(RegExp(r'[,;:!?]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -340,7 +340,7 @@ class VIService extends ChangeNotifier {
     // - standalone (jarvis | javis | jervis | jarves | jarvice | charvis | garvis | jarvi)
     // - (wake up jarvis | jarvis wake up | jarvis please)
     final wakePattern = RegExp(
-      r'\\b(?:(?:hey|hello|hi|okay|ok|yo|listen|wake\\s+up|dear)\\s+vi|vi\\s+(?:wake\\s+up|please|online)|vi|(?:hey|okay|ok|hello|hi)\\s+google)\\b',
+      r'\b(?:(?:hey|hello|hi|okay|ok|yo|listen|wake\s+up|dear)\s+vi|vi\s+(?:wake\s+up|please|online)|vi|(?:hey|okay|ok|hello|hi)\s+google)\b',
       caseSensitive: false,
     );
 
